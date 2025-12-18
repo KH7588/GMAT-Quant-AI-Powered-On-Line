@@ -6,16 +6,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
-
-permissions:
-  contents: write
 
 jobs:
   build-and-deploy:
