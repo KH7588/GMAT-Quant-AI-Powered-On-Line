@@ -27,18 +27,19 @@ console.log('🚀 Starting Build with esbuild...');
 esbuild.build({
   entryPoints: [path.join(__dirname, '../index.tsx')],
   bundle: true,
-  splitting: true,
+  // Disable splitting for simpler build and to avoid issues with format matching
+  splitting: false, 
   format: 'esm',
   minify: true,
   sourcemap: true,
-  platform: 'browser', // 明確指定為瀏覽器環境
-  outdir: 'dist',
+  platform: 'browser', 
+  outfile: 'dist/index.js', // Use outfile instead of outdir when splitting is false
   target: ['es2020'],
   loader: { '.tsx': 'tsx', '.ts': 'ts' },
   define: {
     'process.env.API_KEY': JSON.stringify(apiKey),
   },
-  logLevel: 'info', // 顯示更多建置資訊
+  logLevel: 'info', 
 }).then(() => {
   console.log('✅ Build completed successfully!');
 }).catch((e) => {

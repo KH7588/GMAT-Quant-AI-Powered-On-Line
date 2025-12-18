@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserResponse, Question } from '../types.ts';
+import { UserResponse, Question } from '../types'; // Removed .ts extension
 import { Flag, ListRestart, BookOpen, X } from 'lucide-react';
 
 interface SummaryScreenProps {
@@ -19,13 +19,16 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Helper to format text for HTML (similar to QuestionArea)
   const formatText = (text: string | null): string => {
     if (!text) return '';
     return text.replace(/\n/g, '<br />');
   };
 
+  // Trigger MathJax when modal opens
   useEffect(() => {
     if (activeExplanation && window.MathJax && window.MathJax.typesetPromise) {
+      // Small delay to ensure DOM is rendered before typesetting
       setTimeout(() => {
          window.MathJax.typesetPromise().catch((err: any) => console.log('MathJax Error:', err));
       }, 50);
@@ -36,14 +39,15 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
     <div className="flex-1 bg-white flex flex-col relative h-full">
       <div className="flex-1 overflow-y-auto p-8 mb-[25px]">
         <h2 className="text-2xl font-verdana font-bold text-gray-800 mb-6 text-center">Exam Summary</h2>
+        
         <div className="w-full border border-gray-300 rounded-sm overflow-hidden">
           <table className="w-full text-sm font-verdana text-left table-fixed">
              <colgroup>
-                <col className="w-[80px]" />
-                <col className="w-[120px]" />
-                <col className="w-[120px]" />
-                <col className="w-[100px]" />
-                {!isPracticeMode && <col className="w-[100px]" />}
+                <col className="w-[80px]" /> {/* Q # */}
+                <col className="w-[120px]" /> {/* Your Answer */}
+                <col className="w-[120px]" /> {/* Correct Answer */}
+                <col className="w-[100px]" /> {/* Explanation */}
+                {!isPracticeMode && <col className="w-[100px]" />} {/* Time Taken */}
             </colgroup>
             <thead className="bg-gray-100 border-b border-gray-300">
               <tr>
@@ -94,6 +98,8 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
           </table>
         </div>
       </div>
+
+      {/* Explanation Modal */}
       {activeExplanation && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"
@@ -103,6 +109,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
             className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col m-4"
             onClick={e => e.stopPropagation()}
           >
+            {/* Modal Header */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h3 className="font-bold text-lg font-verdana text-gray-800">
                 Explanation for Question #{activeExplanation.id}
@@ -114,12 +121,16 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
                 <X size={24} />
               </button>
             </div>
+            
+            {/* Modal Body */}
             <div className="p-6 overflow-y-auto">
                <div 
                  className="text-sm font-verdana text-gray-800 leading-relaxed tex2jax_process space-y-4"
                  dangerouslySetInnerHTML={{ __html: formatText(activeExplanation.text) }} 
                />
             </div>
+            
+            {/* Modal Footer */}
             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end rounded-b-lg">
               <button
                 onClick={() => setActiveExplanation(null)}
@@ -131,6 +142,8 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ responses, questio
           </div>
         </div>
       )}
+
+      {/* Summary Specific Footer */}
       <div className="bg-[#4299e1] text-white h-[25px] flex items-center justify-between px-4 text-sm fixed bottom-0 w-full z-20">
          <div className="flex items-center space-x-6 h-full">
         </div>
