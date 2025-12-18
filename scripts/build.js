@@ -51,8 +51,13 @@ esbuild.build({
   sourcemap: true, // Helpful for debugging if needed
   platform: 'browser',
   outfile: path.join(DIST_DIR, 'index.js'),
-  target: ['es2020'],
-  loader: { '.tsx': 'tsx', '.ts': 'ts' },
+  target: ['es2022'], // Updated to ES2022
+  loader: { 
+    '.tsx': 'tsx', 
+    '.ts': 'ts',
+    '.js': 'jsx' 
+  },
+  jsx: 'automatic', // Explicitly set JSX mode
   define: {
     'process.env.API_KEY': JSON.stringify(apiKey),
   },
