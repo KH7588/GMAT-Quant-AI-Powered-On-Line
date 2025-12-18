@@ -1,33 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Header } from './components/Header.tsx';
-import { SubHeader } from './components/SubHeader.tsx';
-import { QuestionArea } from './components/QuestionArea.tsx';
-import { Footer } from './components/Footer.tsx';
-import { SummaryScreen } from './components/SummaryScreen.tsx';
-import { InstructionScreen } from './components/InstructionScreen.tsx';
-import { ConfirmationModal } from './components/ConfirmationModal.tsx';
-import { Question, AppState, AppMode, UserResponse } from './types.ts';
-import { APP_CONFIG } from './data/config.ts';
-import { generateGmatQuestions, generateVariantsFromSeeds } from './services/geminiService.ts';
-import { SEED_QUESTIONS } from './data/seedQuestions.ts';
+import { Header } from './components/Header';
+import { SubHeader } from './components/SubHeader';
+import { QuestionArea } from './components/QuestionArea';
+import { Footer } from './components/Footer';
+import { SummaryScreen } from './components/SummaryScreen';
+import { InstructionScreen } from './components/InstructionScreen';
+import { ConfirmationModal } from './components/ConfirmationModal';
+import { Question, AppState, AppMode, UserResponse } from './types';
+import { APP_CONFIG } from './data/config';
+import { generateGmatQuestions, generateVariantsFromSeeds } from './services/geminiService';
+import { SEED_QUESTIONS } from './data/seedQuestions';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>(AppState.READY);
   const [mode, setMode] = useState<AppMode>(AppMode.INSTRUCTION);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
+  
+  // Data State
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [currentExamQuestions, setCurrentExamQuestions] = useState<Record<number, Question> | null>(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [responses, setResponses] = useState<UserResponse[]>([]);
   const [currentFlag, setCurrentFlag] = useState(false);
+  
+  // Review Queue State
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
+
+  // Timer State
   const [remainingTime, setRemainingTime] = useState(APP_CONFIG.timeLimitMinutes * 60);
   const [questionStartTime, setQuestionStartTime] = useState(APP_CONFIG.timeLimitMinutes * 60);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
+  
   const [questionNumber, setQuestionNumber] = useState(1);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  
+  // AI Generation State
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{current: number, total: number} | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -161,13 +170,17 @@ export default function App() {
       for (let i = 0; i < seeds.length; i += BATCH_SIZE) {
         const batchSeeds = seeds.slice(i, i + BATCH_SIZE);
         const batchResults = await generateVariantsFromSeeds(batchSeeds, difficulty);
+        
         Object.values(batchResults).forEach((q) => {
           globalIndex++;
           accumulatedQuestions[globalIndex] = q;
         });
 
         setGenProgress({ current: Math.min(globalIndex, seeds.length), total: seeds.length });
-        if (i + BATCH_SIZE < seeds.length) await new Promise(resolve => setTimeout(resolve, 500));
+        
+        if (i + BATCH_SIZE < seeds.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
 
       if (Object.keys(accumulatedQuestions).length > 0) {
@@ -176,9 +189,10 @@ export default function App() {
       } else {
         throw new Error("No questions were generated successfully.");
       }
+
     } catch (error) {
        console.error("Bulk generation failed:", error);
-       alert("An error occurred during bulk processing.");
+       alert("An error occurred during bulk processing. Some questions might have failed.");
        setAppState(AppState.ERROR);
     } finally {
       setIsGenerating(false);
@@ -186,10 +200,17 @@ export default function App() {
     }
   };
 
-  const loadNewQuestion = (qNum: number) => {
-    if (!currentExamQuestions) return;
 
-    if (!isTimerPaused) setQuestionStartTime(remainingTime); 
+  const loadNewQuestion = (qNum: number) => {
+    if (!currentExamQuestions) {
+      setAppState(AppState.ERROR);
+      console.error("No exam questions loaded.");
+      return;
+    }
+
+    if (!isTimerPaused) { 
+      setQuestionStartTime(remainingTime); 
+    }
     
     const q = currentExamQuestions[qNum];
     const totalLoaded = Object.keys(currentExamQuestions).length;
@@ -201,6 +222,9 @@ export default function App() {
     } else {
       if (qNum > totalLoaded) {
         setMode(AppMode.SUMMARY);
+      } else {
+        setAppState(AppState.ERROR);
+        console.error(`Question ${qNum} not found.`);
       }
     }
   };
@@ -217,10 +241,13 @@ export default function App() {
       if (isPracticeMode) {
         recordResponseAndProceed();
       } else {
-        if (selectedOption) setShowConfirmation(true);
+        if (selectedOption) {
+          setShowConfirmation(true);
+        }
       }
       return;
     }
+
     if (mode === AppMode.REVIEW) {
       const nextIndex = reviewIndex + 1;
       if (nextIndex < reviewQueue.length) {
@@ -236,7 +263,9 @@ export default function App() {
 
   const recordResponseAndProceed = () => {
     if (!currentQuestion) return;
+
     const timeSpent = Math.max(0, questionStartTime - remainingTime);
+
     const response: UserResponse = {
       questionId: currentQuestion.id,
       questionNumber: questionNumber,
@@ -246,8 +275,12 @@ export default function App() {
       timeSpent: timeSpent,
       isFlagged: currentFlag
     };
+
     setResponses(prev => [...prev, response]);
+
+    // Dynamic Total check:
     const totalLoaded = currentExamQuestions ? Object.keys(currentExamQuestions).length : APP_CONFIG.totalQuestions;
+
     if (questionNumber >= totalLoaded) {
       setMode(AppMode.SUMMARY);
     } else {
@@ -262,11 +295,29 @@ export default function App() {
     recordResponseAndProceed();
   };
 
-  const handleCancelSubmit = () => setShowConfirmation(false);
-  const handleOptionSelect = (label: string) => { if (mode === AppMode.EXAM) setSelectedOption(label); };
-  const handleToggleFlag = () => setCurrentFlag(!currentFlag);
-  const handleTogglePause = () => { if (mode === AppMode.EXAM && !isPracticeMode) setIsTimerPaused(prev => !prev); };
-  const handleExit = () => setShowExitConfirmation(true);
+  const handleCancelSubmit = () => {
+    setShowConfirmation(false);
+  };
+
+  const handleOptionSelect = (label: string) => {
+    if (mode === AppMode.EXAM) {
+      setSelectedOption(label);
+    }
+  };
+
+  const handleToggleFlag = () => {
+    setCurrentFlag(!currentFlag);
+  };
+
+  const handleTogglePause = () => {
+    if (mode === AppMode.EXAM && !isPracticeMode) {
+      setIsTimerPaused(prev => !prev);
+    }
+  };
+
+  const handleExit = () => {
+    setShowExitConfirmation(true);
+  };
 
   const startReviewAll = () => {
     const totalLoaded = currentExamQuestions ? Object.keys(currentExamQuestions).length : APP_CONFIG.totalQuestions;
@@ -289,6 +340,7 @@ export default function App() {
       alert("No flagged or incorrect questions to review!");
       return;
     }
+
     setReviewQueue(queue);
     setReviewIndex(0);
     setMode(AppMode.REVIEW);
@@ -303,7 +355,7 @@ export default function App() {
         <div className="bg-white p-10 rounded-lg shadow-xl text-center max-w-md w-full">
             <h1 className="text-2xl font-bold text-red-800 mb-4">Error</h1>
             <p className="text-lg text-red-600 font-medium mb-4">
-               Failed to generate questions.
+               Failed to generate questions. This might be an issue with the AI service. Please try again later.
             </p>
             <button 
               onClick={resetAppState}
@@ -316,6 +368,7 @@ export default function App() {
     );
   }
 
+  // Calculate dynamic total for Header
   const currentTotal = currentExamQuestions ? Object.keys(currentExamQuestions).length : APP_CONFIG.totalQuestions;
 
   if (mode === AppMode.SUMMARY) {
@@ -360,11 +413,13 @@ export default function App() {
         totalQuestions={currentTotal}
         isPracticeMode={isPracticeMode} 
       />
+      
       <SubHeader 
         isFlagged={currentFlag}
         onToggleFlag={handleToggleFlag}
         disabled={mode === AppMode.REVIEW || mode === AppMode.INSTRUCTION} 
       />
+      
       {mode === AppMode.INSTRUCTION ? (
         <InstructionScreen 
           onGenerate={handleGenerateSet}

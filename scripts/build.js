@@ -1,41 +1,47 @@
 const esbuild = require('esbuild');
 const path = require('path');
+const fs = require('fs');
 
 // 執行既有的清理與 lint 腳本
-// 注意：require 的路徑是相對於此檔案 (scripts/build.js)
-require('./lint-exams.js');
-require('../clean.js');
-require('../copy-assets.js');
+try {
+  require('./lint-exams.js');
+  require('../clean.js');
+  require('../copy-assets.js');
+  
+  // Create .nojekyll to ensure GitHub Pages serves everything correctly
+  fs.writeFileSync(path.join(__dirname, '../dist/.nojekyll'), '');
+} catch (e) {
+  console.error("Error running pre-build scripts:", e);
+  process.exit(1);
+}
 
 // 從系統環境變數中讀取 API Key
-// 在 GitHub Actions 中，這會從 Repository Secrets 讀取
 const apiKey = process.env.API_KEY || '';
 
 if (!apiKey) {
-  console.warn('⚠️ WARNING: 未偵測到 API_KEY 環境變數。部署後的網頁可能無法連線 AI。');
-  console.warn('   若是本地開發，請確保您的環境變數已設定。');
-  console.warn('   若是 GitHub Action，請確保 Repository Secrets 已設定 API_KEY。');
+  console.warn('⚠️ WARNING: API_KEY not found in environment variables.');
 }
 
 console.log('🚀 Starting Build with esbuild...');
 
 esbuild.build({
-  entryPoints: [path.join(__dirname, '../index.tsx')], // 使用絕對路徑以確保找到檔案
+  entryPoints: [path.join(__dirname, '../index.tsx')],
   bundle: true,
   splitting: true,
   format: 'esm',
-  minify: true,       // 壓縮程式碼以縮小體積
-  sourcemap: true,    // 方便除錯
+  minify: true,
+  sourcemap: true,
+  platform: 'browser', // 明確指定為瀏覽器環境
   outdir: 'dist',
-  target: 'es2020',
+  target: ['es2020'],
   loader: { '.tsx': 'tsx', '.ts': 'ts' },
-  // 關鍵步驟：將程式碼中的 process.env.API_KEY 字串替換為實際的值
   define: {
     'process.env.API_KEY': JSON.stringify(apiKey),
   },
+  logLevel: 'info', // 顯示更多建置資訊
 }).then(() => {
   console.log('✅ Build completed successfully!');
-}).catch(() => {
-  console.error('❌ Build failed.');
+}).catch((e) => {
+  console.error('❌ Build failed:', e);
   process.exit(1);
 });

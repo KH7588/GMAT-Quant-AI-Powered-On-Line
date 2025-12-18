@@ -1,8 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question } from '../types.ts';
+import { Question } from '../types'; // Removed .ts extension
 
+// Initialize AI Client
 const getAiClient = () => new GoogleGenAI({apiKey: process.env.API_KEY});
 
+/**
+ * Helper function to generate a specific number of questions in a single batch.
+ */
 const generateBatch = async (count: number, difficulty: 'HARD' | 'EASY', startIndex: number): Promise<Question[]> => {
   const ai = getAiClient();
   const difficultyPrompt = difficulty === 'HARD'
@@ -25,8 +29,8 @@ const generateBatch = async (count: number, difficulty: 'HARD' | 'EASY', startIn
        - Display math (centered, separate line): Enclose in double dollar signs, e.g., $$ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} $$.
     3. JSON ESCAPING RULES:
        - Since you are outputting a JSON string, you MUST double-escape all backslashes in LaTeX commands.
-       - CORRECT: "$\\frac{1}{2}$" (Becomes $\\frac{1}{2}$ after parsing)
-       - Example: Write "\\\\sqrt{x}" to produce $\\sqrt{x}$.
+       - CORRECT: "$\\frac{1}{2}$" (Becomes $\frac{1}{2}$ after parsing)
+       - Example: Write "\\\\sqrt{x}" to produce $\sqrt{x}$.
     4. Text Formatting:
        - Use "\\n" for line breaks to separate paragraphs.
 
@@ -84,11 +88,21 @@ const generateBatch = async (count: number, difficulty: 'HARD' | 'EASY', startIn
     return [];
   } catch (error) {
     console.error(`Batch generation failed for count ${count}:`, error);
+    // Return empty array so Promise.all doesn't fail completely if one batch fails (though ideally we retry)
     return [];
   }
 };
 
+/**
+ * Generates a complete GMAT Quantitative problem set using the Gemini API.
+ * Uses PARALLEL REQUESTS to significantly speed up generation.
+ * 
+ * @param difficulty 'HARD' (default) for 700+ level, 'EASY' for 500-600 level warm-up.
+ * @returns A promise that resolves to a Record of 21 questions.
+ */
 export const generateGmatQuestions = async (difficulty: 'HARD' | 'EASY' = 'HARD'): Promise<Record<number, Question>> => {
+  // Strategy: 3 parallel requests of 7 questions each = 21 questions.
+  // This reduces wait time to ~1/3rd of sequential generation.
   const BATCH_SIZE = 7;
   const NUM_BATCHES = 3;
   
@@ -99,14 +113,18 @@ export const generateGmatQuestions = async (difficulty: 'HARD' | 'EASY' = 'HARD'
 
   try {
     const results = await Promise.all(promises);
+    
+    // Flatten the array of arrays
     const allQuestions = results.flat();
     
     if (allQuestions.length === 0) {
       throw new Error("AI failed to generate any questions.");
     }
 
+    // Re-index questions to ensure keys are 1..21
     const questionsRecord: Record<number, Question> = {};
     allQuestions.forEach((q, index) => {
+      // Ensure we limit to 21 just in case
       if (index < 21) {
         questionsRecord[index + 1] = q;
       }
@@ -120,9 +138,17 @@ export const generateGmatQuestions = async (difficulty: 'HARD' | 'EASY' = 'HARD'
   }
 };
 
+/**
+ * Generates variants (clones) based on specific "Real Exam" seed questions.
+ * Handles parallel processing for speed.
+ * 
+ * @param seedTexts An array of strings, where each string is the text of a Real GMAT Question.
+ * @param difficulty 'HARD' (default) keeps the original logic/complexity. 'EASY' attempts to simplify calculation steps.
+ */
 export const generateVariantsFromSeeds = async (seedTexts: string[], difficulty: 'HARD' | 'EASY' = 'HARD'): Promise<Record<number, Question>> => {
   const ai = getAiClient();
 
+  // Helper to process a small chunk of seeds
   const processChunk = async (chunk: string[], chunkIndex: number): Promise<Question[]> => {
     const difficultyPrompt = difficulty === 'HARD'
       ? "Maintain the SAME level of complexity and logical traps as the original seed."
@@ -203,6 +229,7 @@ export const generateVariantsFromSeeds = async (seedTexts: string[], difficulty:
     }
   };
 
+  // Split seeds into chunks of 5 for parallel processing
   const CHUNK_SIZE = 5;
   const chunks = [];
   for (let i = 0; i < seedTexts.length; i += CHUNK_SIZE) {
